@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <Title>BruteForce.Application</Title>
     <Authors>Mustafa Khazaee</Authors>
-    <Version>1.0.115</Version>
+    <Version>1.0.12</Version>
     <PackageReadmeFile>Readme.md</PackageReadmeFile>
 	<RepositoryUrl>https://github.com/MustafaKhazaee/BruteForce</RepositoryUrl>
 	<Description>Provides MediatR, FLuentValidation and some extension</Description>

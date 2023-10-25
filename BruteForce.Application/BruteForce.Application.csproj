@@ -8,6 +8,7 @@
     <Authors>Mustafa Khazaee</Authors>
     <Version>1.0.115</Version>
     <PackageReadmeFile>Readme.md</PackageReadmeFile>
+	<RepositoryUrl>https://github.com/MustafaKhazaee/BruteForce</RepositoryUrl>
   </PropertyGroup>
 
 	<ItemGroup>

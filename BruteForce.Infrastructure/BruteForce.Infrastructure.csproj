@@ -9,6 +9,7 @@
 	<Version>1.0.115</Version>
 	<PackageReadmeFile>Readme.md</PackageReadmeFile>
 	<RepositoryUrl>https://github.com/MustafaKhazaee/BruteForce</RepositoryUrl>
+	<Description>Provides the implementations of the interfaces in BruteForce.Domain</Description>
   </PropertyGroup>
 
 	<ItemGroup>

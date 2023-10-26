@@ -16,16 +16,23 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : Aggregat
     private readonly bool _isAuditable = typeof(AuditableEntity<int>).IsAssignableFrom(typeof(TEntity));
     private readonly bool _softDelete = typeof(ISoftDelete).IsAssignableFrom(typeof(TEntity));
     private readonly DbContext _dbContext;
+    private readonly IApplicationDbContext _appDbContext;
+    private readonly ICurrentUser _currentUser;
+    private readonly DbSet<TEntity> _dbSet;
 
     public Repository(IApplicationDbContext appDbContext, ICurrentUser currentUser)
     {
-        _actor = currentUser.GetUserName();
-        _dbContext = appDbContext as DbContext;
+        _appDbContext = appDbContext;
+        _currentUser = currentUser;
+        _actor = _currentUser.GetUserName();
+        _dbContext = _appDbContext as DbContext;
+        _dbSet = _dbContext.Set<TEntity>();
     }
 
-    public DbSet<TEntity> DbSet() => _dbContext.Set<TEntity>();
+    public IRepository<T> ChangeEntity<T>() where T : AggregateRoot<int> =>
+        new Repository<T>(_appDbContext, _currentUser);
 
-    public IQueryable<TEntity> AsQueryable() => DbSet().AsQueryable();
+    public IQueryable<TEntity> AsQueryable() => _dbSet.AsQueryable();
 
     public async Task<int> CountAsync(CancellationToken cancellationToken = default)
         => await AsQueryable().CountAsync(cancellationToken);
@@ -48,7 +55,7 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : Aggregat
     public async Task<List<TEntity>> GetAllAsync(CancellationToken cancellationToken = default)
         => await AsQueryable().AsNoTracking().ToListAsync(cancellationToken);
 
-    public async Task<int> AddAsync(TEntity entity, CancellationToken cancellationToken = default)
+    public async Task<int> AddAsync(TEntity entity, bool commitImmediately = false, CancellationToken cancellationToken = default)
     {
         if (entity is null)
             throw new RepositoryException($"Provided {_entityTypeName} was null");
@@ -56,12 +63,12 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : Aggregat
         if (_isAuditable)
             entity = (entity as AuditableEntity<int>).SetCreatedBy(_actor).SetCreatedDate(_now) as TEntity;
 
-        await _dbContext.Set<TEntity>().AddAsync(entity, cancellationToken);
+        await _dbSet.AddAsync(entity, cancellationToken);
 
-        return await _dbContext.SaveChangesAsync(cancellationToken);
+        return commitImmediately ? await _dbContext.SaveChangesAsync(cancellationToken) : 0;
     }
 
-    public async Task<int> AddRangeAsync(IEnumerable<TEntity> entities, CancellationToken cancellationToken = default)
+    public async Task<int> AddRangeAsync(IEnumerable<TEntity> entities, bool commitImmediately = false, CancellationToken cancellationToken = default)
     {
         if (entities is null)
             throw new RepositoryException($"Provided enumerable of {_entityTypeName}s was null");
@@ -77,13 +84,15 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : Aggregat
                       )
                       .Cast<TEntity>();
 
-        await _dbContext.AddRangeAsync(entities, cancellationToken);
+        await _dbSet.AddRangeAsync(entities, cancellationToken);
 
-        return await _dbContext.SaveChangesAsync(cancellationToken);
+        return commitImmediately ? await _dbContext.SaveChangesAsync(cancellationToken) : 0;
     }
 
-    public async Task<int> RemoveByIdAsync(int Id, CancellationToken cancellationToken = default)
-        => await (_softDelete ?
+    public async Task<int> RemoveByIdAsync(int Id, bool commitImmediately = false, CancellationToken cancellationToken = default)
+    {
+        if (commitImmediately)
+            return await (_softDelete ?
                 AsQueryable()
                     .Where(e => e.Id == Id)
                     .Cast<ISoftDelete>()
@@ -97,15 +106,31 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : Aggregat
                 AsQueryable()
                     .Where(e => e.Id == Id)
                     .ExecuteDeleteAsync(cancellationToken)
-        );
+            );
 
-    public async Task<int> RemoveAsync(TEntity entity, CancellationToken cancellationToken = default)
+        var entity = await _dbSet.FirstOrDefaultAsync(e => e.Id == Id) ??
+            throw new RepositoryException($"Provided {_entityTypeName} was null");
+
+        if (_softDelete)
+        {
+            entity = (entity as ISoftDelete).SetIsDeleted(true).SetDeletedBy(_actor).SetDeletedDate(_now) as TEntity;
+            _dbSet.Update(entity);
+        }
+        else
+        {
+            _dbSet.Remove(entity);
+        }
+
+        return 0;
+    }
+
+    public async Task<int> RemoveAsync(TEntity entity, bool commitImmediately = false, CancellationToken cancellationToken = default)
         => entity is null ?
             throw new RepositoryException($"Provided {_entityTypeName} was null")
             :
-            await RemoveByIdAsync(entity.Id, cancellationToken);
+            await RemoveByIdAsync(entity.Id, commitImmediately, cancellationToken);
 
-    public async Task<int> RemoveRangeAsync(IEnumerable<TEntity> entities, CancellationToken cancellationToken = default)
+    public async Task<int> RemoveRangeAsync(IEnumerable<TEntity> entities, bool commitImmediately = false, CancellationToken cancellationToken = default)
     {
         if (entities is null)
             throw new RepositoryException($"Provided enumerable of {_entityTypeName}s was null");
@@ -113,7 +138,8 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : Aggregat
         if (!entities.Any())
             return 0;
 
-        return await (_softDelete ?
+        if (commitImmediately)
+            return await (_softDelete ?
                 AsQueryable()
                     .Where(i => entities.Select(e => e.Id).Contains(i.Id))
                     .Cast<ISoftDelete>()
@@ -128,21 +154,34 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : Aggregat
                     .Where(i => entities.Select(e => e.Id).Contains(i.Id))
                     .ExecuteDeleteAsync(cancellationToken)
         );
+
+        if (_softDelete)
+        {
+            entities = Enumerable.Cast<ISoftDelete>(entities).Select(
+                e => e.SetDeletedBy(_actor).SetDeletedDate(_now).SetIsDeleted(true)
+            ).Cast<TEntity>();
+
+            _dbSet.UpdateRange(entities);
+        }
+        else
+        {
+            _dbSet.RemoveRange(entities);
+        }
+
+        return 0;
     }
 
-    [Obsolete("Use UpdateAsync method with \"SetPropertyCalls\" parameter for better performance")]
-    public async Task<int> UpdateAsync(TEntity entity, CancellationToken cancellationToken = default)
+    public async Task<int> UpdateAsync(TEntity entity, bool commitImmediately = false, CancellationToken cancellationToken = default)
     {
         if (entity is null)
             throw new RepositoryException($"Provided {_entityTypeName} was null");
 
-        _dbContext.Set<TEntity>().Update(entity);
+        _dbSet.Update(entity);
 
-        return await _dbContext.SaveChangesAsync(cancellationToken);
+        return commitImmediately ? await _dbContext.SaveChangesAsync(cancellationToken) : 0;
     }
 
-    [Obsolete("Use UpdateAsync method with \"SetPropertyCalls\" parameter for better performance")]
-    public async Task<int> UpdateRangeAsync(IEnumerable<TEntity> entities, CancellationToken cancellationToken = default)
+    public async Task<int> UpdateRangeAsync(IEnumerable<TEntity> entities, bool commitImmediately = false, CancellationToken cancellationToken = default)
     {
         if (entities is null)
             throw new RepositoryException($"Provided enumerable of {_entityTypeName}s was null");
@@ -150,23 +189,28 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : Aggregat
         if (!entities.Any())
             return 0;
 
-        _dbContext.Set<TEntity>().UpdateRange(entities);
+        _dbSet.UpdateRange(entities);
 
-        return await _dbContext.SaveChangesAsync(cancellationToken);
+        return commitImmediately ? await _dbContext.SaveChangesAsync(cancellationToken) : 0;
     }
 
     public async Task<int> UpdateAsync(Expression<Func<TEntity, bool>> predicate, Expression<Func<SetPropertyCalls<TEntity>, SetPropertyCalls<TEntity>>> setPropertyCalls, CancellationToken cancellationToken = default)
         => await AsQueryable().Where(predicate).ExecuteUpdateAsync(setPropertyCalls, cancellationToken);
 
-    public void MarkAsAdded(TEntity entity) => _dbContext.Entry(entity).State = EntityState.Added;
+    public int SaveChanges() => _dbContext.SaveChanges();
 
-    public void MarkAsDeleted(TEntity entity) => _dbContext.Entry(entity).State = EntityState.Deleted;
+    public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        => await _dbContext.SaveChangesAsync(cancellationToken);
 
-    public void MarkAsDetached(TEntity entity) => _dbContext.Entry(entity).State = EntityState.Detached;
+    public void MarkAsAdded(TEntity entity) => _dbSet.Entry(entity).State = EntityState.Added;
 
-    public void MarkAsModified(TEntity entity) => _dbContext.Entry(entity).State = EntityState.Modified;
+    public void MarkAsDeleted(TEntity entity) => _dbSet.Entry(entity).State = EntityState.Deleted;
 
-    public void MarkAsUnchanged(TEntity entity) => _dbContext.Entry(entity).State = EntityState.Unchanged;
+    public void MarkAsDetached(TEntity entity) => _dbSet.Entry(entity).State = EntityState.Detached;
+
+    public void MarkAsModified(TEntity entity) => _dbSet.Entry(entity).State = EntityState.Modified;
+
+    public void MarkAsUnchanged(TEntity entity) => _dbSet.Entry(entity).State = EntityState.Unchanged;
 }
 
 public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntity : AggregateRoot<TKey> where TKey : IComparable
@@ -176,17 +220,24 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
     private readonly string _actor;
     private readonly bool _isAuditable = typeof(AuditableEntity<TKey>).IsAssignableFrom(typeof(TEntity));
     private readonly bool _softDelete = typeof(ISoftDelete).IsAssignableFrom(typeof(TEntity));
+    private readonly IApplicationDbContext _appDbContext;
+    private readonly ICurrentUser _currentUser;
     private readonly DbContext _dbContext;
+    private readonly DbSet<TEntity> _dbSet;
 
     public Repository(IApplicationDbContext appDbContext, ICurrentUser currentUser)
     {
-        _actor = currentUser.GetUserName();
-        _dbContext = appDbContext as DbContext;
+        _appDbContext = appDbContext;
+        _currentUser = currentUser;
+        _actor = _currentUser.GetUserName();
+        _dbContext = _appDbContext as DbContext;
+        _dbSet = _dbContext.Set<TEntity>();
     }
 
-    public DbSet<TEntity> DbSet() => _dbContext.Set<TEntity>();
+    public IRepository<T, K> ChangeEntity<T, K>() where T : AggregateRoot<K> where K : IComparable => 
+        new Repository<T, K>(_appDbContext, _currentUser);
 
-    public IQueryable<TEntity> AsQueryable() => DbSet().AsQueryable();
+    public IQueryable<TEntity> AsQueryable() => _dbSet.AsQueryable();
 
     public async Task<int> CountAsync(CancellationToken cancellationToken = default)
         => await AsQueryable().CountAsync(cancellationToken);
@@ -209,7 +260,7 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
     public async Task<List<TEntity>> GetAllAsync(CancellationToken cancellationToken = default)
         => await AsQueryable().AsNoTracking().ToListAsync(cancellationToken);
 
-    public async Task<int> AddAsync(TEntity entity, CancellationToken cancellationToken = default)
+    public async Task<int> AddAsync(TEntity entity, bool commitImmediately = false, CancellationToken cancellationToken = default)
     {
         if (entity is null)
             throw new RepositoryException($"Provided {_entityTypeName} was null");
@@ -217,12 +268,12 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
         if (_isAuditable)
             entity = (entity as AuditableEntity<TKey>).SetCreatedBy(_actor).SetCreatedDate(_now) as TEntity;
 
-        await _dbContext.Set<TEntity>().AddAsync(entity, cancellationToken);
+        await _dbSet.AddAsync(entity, cancellationToken);
 
-        return await _dbContext.SaveChangesAsync(cancellationToken);
+        return commitImmediately ? await _dbContext.SaveChangesAsync(cancellationToken) : 0;
     }
 
-    public async Task<int> AddRangeAsync(IEnumerable<TEntity> entities, CancellationToken cancellationToken = default)
+    public async Task<int> AddRangeAsync(IEnumerable<TEntity> entities, bool commitImmediately = false, CancellationToken cancellationToken = default)
     {
         if (entities is null)
             throw new RepositoryException($"Provided enumerable of {_entityTypeName}s was null");
@@ -238,13 +289,15 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
                       )
                       .Cast<TEntity>();
 
-        await _dbContext.AddRangeAsync(entities, cancellationToken);
+        await _dbSet.AddRangeAsync(entities, cancellationToken);
 
-        return await _dbContext.SaveChangesAsync(cancellationToken);
+        return commitImmediately ? await _dbContext.SaveChangesAsync(cancellationToken) : 0;
     }
 
-    public async Task<int> RemoveByIdAsync(TKey Id, CancellationToken cancellationToken = default)
-        => await (_softDelete ?
+    public async Task<int> RemoveByIdAsync(TKey Id, bool commitImmediately = false, CancellationToken cancellationToken = default)
+    {
+        if (commitImmediately)
+            return await (_softDelete ?
                 AsQueryable()
                     .Where(e => e.Id.Equals(Id))
                     .Cast<ISoftDelete>()
@@ -258,15 +311,31 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
                 AsQueryable()
                     .Where(e => e.Id.Equals(Id))
                     .ExecuteDeleteAsync(cancellationToken)
-        );
+            );
 
-    public async Task<int> RemoveAsync(TEntity entity, CancellationToken cancellationToken = default)
+        var entity = await _dbSet.FirstOrDefaultAsync(e => e.Id.Equals(Id)) ?? 
+            throw new RepositoryException($"Provided {_entityTypeName} was null");
+
+        if (_softDelete)
+        {
+            entity = (entity as ISoftDelete).SetIsDeleted(true).SetDeletedBy(_actor).SetDeletedDate(_now) as TEntity;
+            _dbSet.Update(entity);
+        }
+        else
+        {
+            _dbSet.Remove(entity);
+        }
+
+        return 0;
+    }
+
+    public async Task<int> RemoveAsync(TEntity entity, bool commitImmediately = false, CancellationToken cancellationToken = default)
         => entity is null ?
             throw new RepositoryException($"Provided {_entityTypeName} was null")
             :
-            await RemoveByIdAsync(entity.Id, cancellationToken);
+            await RemoveByIdAsync(entity.Id, commitImmediately, cancellationToken);
 
-    public async Task<int> RemoveRangeAsync(IEnumerable<TEntity> entities, CancellationToken cancellationToken = default)
+    public async Task<int> RemoveRangeAsync(IEnumerable<TEntity> entities, bool commitImmediately = false, CancellationToken cancellationToken = default)
     {
         if (entities is null)
             throw new RepositoryException($"Provided enumerable of {_entityTypeName}s was null");
@@ -274,7 +343,8 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
         if (!entities.Any())
             return 0;
 
-        return await (_softDelete ?
+        if (commitImmediately)
+            return await (_softDelete ?
                 AsQueryable()
                     .Where(i => entities.Select(e => e.Id).Contains(i.Id))
                     .Cast<ISoftDelete>()
@@ -289,21 +359,34 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
                     .Where(i => entities.Select(e => e.Id).Contains(i.Id))
                     .ExecuteDeleteAsync(cancellationToken)
         );
+
+        if (_softDelete)
+        {
+            entities = Enumerable.Cast<ISoftDelete>(entities).Select(
+                e => e.SetDeletedBy(_actor).SetDeletedDate(_now).SetIsDeleted(true)
+            ).Cast<TEntity>();
+
+            _dbSet.UpdateRange(entities);
+        }
+        else
+        {
+            _dbSet.RemoveRange(entities);
+        }
+
+        return 0;
     }
 
-    [Obsolete("Use UpdateAsync method with \"SetPropertyCalls\" parameter for better performance")]
-    public async Task<int> UpdateAsync(TEntity entity, CancellationToken cancellationToken = default)
+    public async Task<int> UpdateAsync(TEntity entity, bool commitImmediately = false, CancellationToken cancellationToken = default)
     {
         if (entity is null)
             throw new RepositoryException($"Provided {_entityTypeName} was null");
 
-        _dbContext.Set<TEntity>().Update(entity);
+        _dbSet.Update(entity);
 
-        return await _dbContext.SaveChangesAsync(cancellationToken);
+        return commitImmediately ? await _dbContext.SaveChangesAsync(cancellationToken) : 0;
     }
 
-    [Obsolete("Use UpdateAsync method with \"SetPropertyCalls\" parameter for better performance")]
-    public async Task<int> UpdateRangeAsync(IEnumerable<TEntity> entities, CancellationToken cancellationToken = default)
+    public async Task<int> UpdateRangeAsync(IEnumerable<TEntity> entities, bool commitImmediately = false, CancellationToken cancellationToken = default)
     {
         if (entities is null)
             throw new RepositoryException($"Provided enumerable of {_entityTypeName}s was null");
@@ -311,21 +394,26 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
         if (!entities.Any())
             return 0;
 
-        _dbContext.Set<TEntity>().UpdateRange(entities);
+        _dbSet.UpdateRange(entities);
 
-        return await _dbContext.SaveChangesAsync(cancellationToken);
+        return commitImmediately ? await _dbContext.SaveChangesAsync(cancellationToken) : 0;
     }
 
     public async Task<int> UpdateAsync(Expression<Func<TEntity, bool>> predicate, Expression<Func<SetPropertyCalls<TEntity>, SetPropertyCalls<TEntity>>> setPropertyCalls, CancellationToken cancellationToken = default)
         => await AsQueryable().Where(predicate).ExecuteUpdateAsync(setPropertyCalls, cancellationToken);
 
-    public void MarkAsAdded(TEntity entity) => _dbContext.Entry(entity).State = EntityState.Added;
+    public int SaveChanges() => _dbContext.SaveChanges();
 
-    public void MarkAsDeleted(TEntity entity) => _dbContext.Entry(entity).State = EntityState.Deleted;
+    public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        => await _dbContext.SaveChangesAsync(cancellationToken);
 
-    public void MarkAsDetached(TEntity entity) => _dbContext.Entry(entity).State = EntityState.Detached;
+    public void MarkAsAdded(TEntity entity) => _dbSet.Entry(entity).State = EntityState.Added;
 
-    public void MarkAsModified(TEntity entity) => _dbContext.Entry(entity).State = EntityState.Modified;
+    public void MarkAsDeleted(TEntity entity) => _dbSet.Entry(entity).State = EntityState.Deleted;
 
-    public void MarkAsUnchanged(TEntity entity) => _dbContext.Entry(entity).State = EntityState.Unchanged;
+    public void MarkAsDetached(TEntity entity) => _dbSet.Entry(entity).State = EntityState.Detached;
+
+    public void MarkAsModified(TEntity entity) => _dbSet.Entry(entity).State = EntityState.Modified;
+
+    public void MarkAsUnchanged(TEntity entity) => _dbSet.Entry(entity).State = EntityState.Unchanged;
 }

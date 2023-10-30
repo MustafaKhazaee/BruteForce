@@ -3,11 +3,11 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.8.34205.153
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BruteForce.Domain", "BruteForce.Domain\BruteForce.Domain.csproj", "{56775531-6940-4C52-8DA4-FE70118BC4A7}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BruteForce.Domain", "BruteForce.Domain\BruteForce.Domain.csproj", "{56775531-6940-4C52-8DA4-FE70118BC4A7}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BruteForce.Application", "BruteForce.Application\BruteForce.Application.csproj", "{8A821C2E-C88C-4335-8725-0BCB22CE2B23}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BruteForce.Application", "BruteForce.Application\BruteForce.Application.csproj", "{8A821C2E-C88C-4335-8725-0BCB22CE2B23}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BruteForce.Infrastructure", "BruteForce.Infrastructure\BruteForce.Infrastructure.csproj", "{307655F3-36AB-408A-8744-994669F35B6F}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BruteForce.Infrastructure", "BruteForce.Infrastructure\BruteForce.Infrastructure.csproj", "{307655F3-36AB-408A-8744-994669F35B6F}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

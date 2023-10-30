@@ -29,9 +29,6 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : Aggregat
         _dbSet = _dbContext.Set<TEntity>();
     }
 
-    public IRepository<T> ChangeEntity<T>() where T : AggregateRoot<int> =>
-        new Repository<T>(_appDbContext, _currentUser);
-
     public IQueryable<TEntity> AsQueryable() => _dbSet.AsQueryable();
 
     public async Task<int> CountAsync(CancellationToken cancellationToken = default)
@@ -233,9 +230,6 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
         _dbContext = _appDbContext as DbContext;
         _dbSet = _dbContext.Set<TEntity>();
     }
-
-    public IRepository<T, K> ChangeEntity<T, K>() where T : AggregateRoot<K> where K : IComparable => 
-        new Repository<T, K>(_appDbContext, _currentUser);
 
     public IQueryable<TEntity> AsQueryable() => _dbSet.AsQueryable();
 

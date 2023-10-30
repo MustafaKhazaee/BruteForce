@@ -25,6 +25,8 @@ public static class DependencyInjection
             , ServiceLifetime.Scoped
         );
 
+        services.AddScoped<IUnitOfWork, UnitOfWork>();
+
         services.AddScoped(typeof(IRepository<,>), typeof(Repository<,>));
 
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));

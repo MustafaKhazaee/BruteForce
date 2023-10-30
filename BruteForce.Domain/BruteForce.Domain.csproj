@@ -1,20 +1,16 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net7.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <Title>BruteForce.Domain</Title>
     <Authors>Mustafa Khazaee</Authors>
-	<Version>1.1.2</Version>
+	<Version>1.1.4</Version>
 	<PackageReadmeFile>Readme.md</PackageReadmeFile>
 	<RepositoryUrl>https://github.com/MustafaKhazaee/BruteForce</RepositoryUrl>
 	<Description>Provides useful interfaces to ease DDD and Generic Repository</Description>
   </PropertyGroup>
-
-	<ItemGroup>
-		<PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="7.0.12" />
-	</ItemGroup>
 
 	<ItemGroup>
 	  <None Update="Readme.md">

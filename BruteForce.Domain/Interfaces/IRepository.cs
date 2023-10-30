@@ -7,7 +7,6 @@ namespace BruteForce.Domain.Interfaces;
 
 public interface IRepository<TEntity> where TEntity : AggregateRoot<int>
 {
-    IRepository<T> ChangeEntity<T>() where T : AggregateRoot<int>;
     IQueryable<TEntity> AsQueryable();
 
     Task<int> CountAsync(CancellationToken cancellationToken = default);
@@ -45,7 +44,6 @@ public interface IRepository<TEntity> where TEntity : AggregateRoot<int>
 
 public interface IRepository<TEntity, TKey> where TEntity : AggregateRoot<TKey> where TKey : IComparable
 {
-    IRepository<T, K> ChangeEntity<T, K>() where T : AggregateRoot<K> where K : IComparable;
     IQueryable<TEntity> AsQueryable();
 
     Task<int> CountAsync(CancellationToken cancellationToken = default);

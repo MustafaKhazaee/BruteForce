@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <Title>BruteForce.Domain</Title>
     <Authors>Mustafa Khazaee</Authors>
-	<Version>1.1.6</Version>
+	<Version>1.1.7</Version>
 	<PackageReadmeFile>Readme.md</PackageReadmeFile>
 	<RepositoryUrl>https://github.com/MustafaKhazaee/BruteForce</RepositoryUrl>
 	<Description>Provides useful interfaces to ease DDD and Generic Repository</Description>

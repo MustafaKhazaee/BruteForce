@@ -15,21 +15,26 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : Aggregat
     private readonly string _actor;
     private readonly bool _isAuditable = typeof(AuditableEntity<int>).IsAssignableFrom(typeof(TEntity));
     private readonly bool _softDelete = typeof(ISoftDelete).IsAssignableFrom(typeof(TEntity));
+    private readonly bool _hasTenant = typeof(IHasTenant).IsAssignableFrom(typeof(TEntity));
     private readonly DbContext _dbContext;
     private readonly IApplicationDbContext _appDbContext;
     private readonly ICurrentUser _currentUser;
+    private readonly ICurrentTenant _currentTenant;
     private readonly DbSet<TEntity> _dbSet;
+    private readonly int _tenantId;
 
-    public Repository(IApplicationDbContext appDbContext, ICurrentUser currentUser)
+    public Repository(IApplicationDbContext appDbContext, ICurrentUser currentUser, ICurrentTenant currentTenant)
     {
         _appDbContext = appDbContext;
         _currentUser = currentUser;
+        _currentTenant = currentTenant;
         _actor = _currentUser.GetUserName();
+        _tenantId = _currentTenant.GetTenantId();
         _dbContext = _appDbContext as DbContext;
         _dbSet = _dbContext.Set<TEntity>();
     }
 
-    public IQueryable<TEntity> AsQueryable() => _dbSet.AsQueryable();
+    public IQueryable<TEntity> AsQueryable() => _dbSet.Where(e => !_hasTenant || (e as IHasTenant).TenantId == _tenantId);
 
     public async Task<int> CountAsync(CancellationToken cancellationToken = default)
         => await AsQueryable().CountAsync(cancellationToken);
@@ -60,6 +65,9 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : Aggregat
         if (_isAuditable)
             entity = (entity as AuditableEntity<int>).SetCreatedBy(_actor).SetCreatedDate(_now) as TEntity;
 
+        if (_hasTenant)
+            entity = (entity as IHasTenant).SetTenantId(_tenantId) as TEntity;
+
         await _dbSet.AddAsync(entity, cancellationToken);
 
         return commitImmediately ? await _dbContext.SaveChangesAsync(cancellationToken) : 0;
@@ -79,6 +87,11 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : Aggregat
                           e.SetCreatedBy(_actor)
                           .SetCreatedDate(_now)
                       )
+                      .Cast<TEntity>();
+
+        if (_hasTenant)
+            entities = Enumerable.Cast<IHasTenant>(entities)
+                      .Select(e => e.SetTenantId(_tenantId))
                       .Cast<TEntity>();
 
         await _dbSet.AddRangeAsync(entities, cancellationToken);
@@ -217,21 +230,26 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
     private readonly string _actor;
     private readonly bool _isAuditable = typeof(AuditableEntity<TKey>).IsAssignableFrom(typeof(TEntity));
     private readonly bool _softDelete = typeof(ISoftDelete).IsAssignableFrom(typeof(TEntity));
+    private readonly bool _hasTenant = typeof(IHasTenant).IsAssignableFrom(typeof(TEntity));
     private readonly IApplicationDbContext _appDbContext;
     private readonly ICurrentUser _currentUser;
+    private readonly ICurrentTenant _currentTenant;
     private readonly DbContext _dbContext;
     private readonly DbSet<TEntity> _dbSet;
+    private readonly int _tenantId;
 
-    public Repository(IApplicationDbContext appDbContext, ICurrentUser currentUser)
+    public Repository(IApplicationDbContext appDbContext, ICurrentUser currentUser, ICurrentTenant currentTenant)
     {
         _appDbContext = appDbContext;
         _currentUser = currentUser;
+        _currentTenant = currentTenant;
         _actor = _currentUser.GetUserName();
+        _tenantId = _currentTenant.GetTenantId();
         _dbContext = _appDbContext as DbContext;
         _dbSet = _dbContext.Set<TEntity>();
     }
 
-    public IQueryable<TEntity> AsQueryable() => _dbSet.AsQueryable();
+    public IQueryable<TEntity> AsQueryable() => _dbSet.Where(e => !_hasTenant || (e as IHasTenant).TenantId == _tenantId);
 
     public async Task<int> CountAsync(CancellationToken cancellationToken = default)
         => await AsQueryable().CountAsync(cancellationToken);
@@ -262,6 +280,9 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
         if (_isAuditable)
             entity = (entity as AuditableEntity<TKey>).SetCreatedBy(_actor).SetCreatedDate(_now) as TEntity;
 
+        if (_hasTenant)
+            entity = (entity as IHasTenant).SetTenantId(_tenantId) as TEntity;
+
         await _dbSet.AddAsync(entity, cancellationToken);
 
         return commitImmediately ? await _dbContext.SaveChangesAsync(cancellationToken) : 0;
@@ -281,6 +302,11 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
                           e.SetCreatedBy(_actor)
                           .SetCreatedDate(_now)
                       )
+                      .Cast<TEntity>();
+
+        if (_hasTenant)
+            entities = Enumerable.Cast<IHasTenant>(entities)
+                      .Select(e => e.SetTenantId(_tenantId))
                       .Cast<TEntity>();
 
         await _dbSet.AddRangeAsync(entities, cancellationToken);

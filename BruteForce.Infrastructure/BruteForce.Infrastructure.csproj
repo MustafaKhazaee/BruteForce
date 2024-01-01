@@ -6,13 +6,14 @@
     <Nullable>enable</Nullable>
     <Title>BruteForce.Infrastructure</Title>
     <Authors>Mustafa Khazaee</Authors>
-	<Version>1.1.7</Version>
+	<Version>1.1.9</Version>
 	<PackageReadmeFile>Readme.md</PackageReadmeFile>
 	<RepositoryUrl>https://github.com/MustafaKhazaee/BruteForce</RepositoryUrl>
 	<Description>Provides the implementations of the interfaces in BruteForce.Domain</Description>
   </PropertyGroup>
 
 	<ItemGroup>
+		<PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.0" />
 		<PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="8.0.0" />
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0" />
 		<PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.2.0" />

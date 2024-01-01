@@ -3,6 +3,7 @@ using BruteForce.Domain.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using BruteForce.Infrastructure.Services;
 using Microsoft.Extensions.DependencyInjection;
+using BruteForce.Infrastructure.Enums;
 
 namespace BruteForce.Infrastructure;
 
@@ -14,14 +15,18 @@ public static class DependencyInjection
     /// you need to provide your own implementation for BruteForce.Domain.Interfaces.ICurrentUser
     /// to enable auditing of your entities.
     /// </summary>
-    public static IServiceCollection AddInfrastructure<ApplicationDbContext> (this IServiceCollection services, string connectionString) where ApplicationDbContext : DbContext, IApplicationDbContext
+    public static IServiceCollection AddInfrastructure<ApplicationDbContext> (this IServiceCollection services,
+        DatabaseProviders DatabaseType, string connectionString) where ApplicationDbContext : DbContext, IApplicationDbContext
     {
-        services.AddDbContext<IApplicationDbContext, ApplicationDbContext>(config =>
+        services.AddDbContextPool<IApplicationDbContext, ApplicationDbContext>(config =>
             {
-                config.UseNpgsql(connectionString);
+                if (DatabaseType == DatabaseProviders.SQLServer)
+                    config.UseSqlServer(connectionString);
+                else if (DatabaseType == DatabaseProviders.PostgreSQL)
+                    config.UseNpgsql(connectionString);
+
                 config.EnableDetailedErrors();
             }
-            , ServiceLifetime.Scoped
         );
 
         services.AddScoped<IUnitOfWork, UnitOfWork>();

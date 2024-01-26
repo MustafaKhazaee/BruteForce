@@ -7,10 +7,10 @@ namespace BruteForce.Domain.Entities;
 /// <typeparam name="T">Specifies the type of primary key (usually int or long)</typeparam>
 public abstract class AuditableEntity<TKey> : AggregateRoot<TKey> where TKey: IComparable
 {
-    public string? CreatedBy { private set; get; }
-    public DateTime? CreatedDate { private set; get; }
-    public string? ModifiedBy { private set; get; }
-    public DateTime? ModifiedDate { private set; get; }
+    public string? CreatedBy { set; get; }
+    public DateTime? CreatedDate { set; get; }
+    public string? ModifiedBy { set; get; }
+    public DateTime? ModifiedDate { set; get; }
 
     public AuditableEntity<TKey> SetCreatedBy (string createdBy)
     {

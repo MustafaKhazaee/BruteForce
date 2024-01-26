@@ -42,11 +42,20 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : Aggregat
     public async Task<List<TEntity>> FindAllAsync(Expression<Func<TEntity, bool>> predicate, CancellationToken cancellationToken = default)
         => await AsQueryable().Where(predicate).AsNoTracking().ToListAsync(cancellationToken);
 
+    public async Task<List<TEntity>> FindAllAndTrackAsync(Expression<Func<TEntity, bool>> predicate, CancellationToken cancellationToken = default)
+        => await AsQueryable().Where(predicate).ToListAsync(cancellationToken);
+
+    public async Task<TEntity?> FindByIdAndTrackAsync(int Id, CancellationToken cancellationToken = default)
+        => await AsQueryable().Where(e => e.Id == Id).FirstOrDefaultAsync(cancellationToken);
+
     public async Task<TEntity?> FindByIdAsync(int Id, CancellationToken cancellationToken = default)
         => await AsQueryable().Where(e => e.Id == Id).AsNoTracking().FirstOrDefaultAsync(cancellationToken);
-
+    
     public async Task<TEntity?> FindAsync(Expression<Func<TEntity, bool>> predicate, CancellationToken cancellationToken = default)
         => await AsQueryable().Where(predicate).AsNoTracking().FirstOrDefaultAsync(cancellationToken);
+
+    public async Task<TEntity?> FindAndTrackAsync(Expression<Func<TEntity, bool>> predicate, CancellationToken cancellationToken = default)
+        => await AsQueryable().Where(predicate).FirstOrDefaultAsync(cancellationToken);
 
     public async Task<List<TEntity>> GetPagedAsync(int pageSize, int pageNumber, CancellationToken cancellationToken = default)
         => await AsQueryable().AsNoTracking().Skip(pageSize * pageNumber).Take(pageSize).ToListAsync(cancellationToken);
@@ -55,6 +64,9 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : Aggregat
         => await AsQueryable().Where(predicate).AsNoTracking().Skip(pageSize * pageNumber).Take(pageSize).ToListAsync(cancellationToken);
 
     public async Task<List<TEntity>> GetAllAsync(CancellationToken cancellationToken = default)
+        => await AsQueryable().AsNoTracking().ToListAsync(cancellationToken);
+
+    public async Task<List<TEntity>> GetAllAndTrackAsync(CancellationToken cancellationToken = default)
         => await AsQueryable().AsNoTracking().ToListAsync(cancellationToken);
 
     public async Task<int> AddAsync(TEntity entity, bool commitImmediately = false, CancellationToken cancellationToken = default)
@@ -86,8 +98,7 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : Aggregat
                       .Select(e =>
                           e.SetCreatedBy(_actor)
                           .SetCreatedDate(_now)
-                      )
-                      .Cast<TEntity>();
+                      ).Cast<TEntity>();
 
         if (_hasTenant)
             entities = Enumerable.Cast<IHasTenant>(entities)
@@ -118,7 +129,7 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : Aggregat
                     .ExecuteDeleteAsync(cancellationToken)
             );
 
-        var entity = await _dbSet.FirstOrDefaultAsync(e => e.Id == Id) ??
+        var entity = await AsQueryable().FirstOrDefaultAsync(e => e.Id == Id, cancellationToken) ??
             throw new RepositoryException($"Provided {_entityTypeName} was null");
 
         if (_softDelete)
@@ -135,16 +146,25 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : Aggregat
     }
 
     public async Task<int> RemoveAsync(TEntity entity, bool commitImmediately = false, CancellationToken cancellationToken = default)
-        => entity is null ?
-            throw new RepositoryException($"Provided {_entityTypeName} was null")
-            :
-            await RemoveByIdAsync(entity.Id, commitImmediately, cancellationToken);
+    {
+        if (entity is null)
+            throw new RepositoryException($"Provided {_entityTypeName} was null");
 
+        return await RemoveByIdAsync(entity.Id, commitImmediately, cancellationToken);
+    }
+    
     public async Task<int> RemoveRangeAsync(IEnumerable<TEntity> entities, bool commitImmediately = false, CancellationToken cancellationToken = default)
     {
         if (entities is null)
             throw new RepositoryException($"Provided enumerable of {_entityTypeName}s was null");
 
+        if (_hasTenant)
+            foreach (TEntity entity in entities)
+            {
+                if ((entity as IHasTenant).TenantId != _tenantId)
+                    throw new RepositoryException("You are not the owner tenant");
+            }
+        
         if (!entities.Any())
             return 0;
 
@@ -186,6 +206,15 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : Aggregat
         if (entity is null)
             throw new RepositoryException($"Provided {_entityTypeName} was null");
 
+        if (_hasTenant && (entity as IHasTenant).TenantId != _tenantId)
+            throw new RepositoryException("You are not the owner tenant");
+        
+        if (_isAuditable)
+            entity = (entity as AuditableEntity<int>)
+                .SetModifiedBy(_actor)
+                .SetModifiedDate(_now)
+                as TEntity;
+
         _dbSet.Update(entity);
 
         return commitImmediately ? await _dbContext.SaveChangesAsync(cancellationToken) : 0;
@@ -196,8 +225,22 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : Aggregat
         if (entities is null)
             throw new RepositoryException($"Provided enumerable of {_entityTypeName}s was null");
 
+        if (_hasTenant)
+            foreach (TEntity entity in entities)
+            {
+                if ((entity as IHasTenant).TenantId != _tenantId)
+                    throw new RepositoryException("You are not the owner tenant");
+            }
+
         if (!entities.Any())
-            return 0;
+            return 0;         
+
+        if (_isAuditable)
+            entities = Enumerable.Cast<AuditableEntity<int>>(entities)
+                      .Select(e =>
+                          e.SetModifiedBy(_actor)
+                           .SetModifiedDate(_now)
+                      ).Cast<TEntity>();
 
         _dbSet.UpdateRange(entities);
 
@@ -257,12 +300,21 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
     public async Task<List<TEntity>> FindAllAsync(Expression<Func<TEntity, bool>> predicate, CancellationToken cancellationToken = default)
         => await AsQueryable().Where(predicate).AsNoTracking().ToListAsync(cancellationToken);
 
+    public async Task<List<TEntity>> FindAllAndTrackAsync(Expression<Func<TEntity, bool>> predicate, CancellationToken cancellationToken = default)
+        => await AsQueryable().Where(predicate).ToListAsync(cancellationToken);
+
     public async Task<TEntity?> FindByIdAsync(TKey Id, CancellationToken cancellationToken = default)
         => await AsQueryable().Where(e => e.Id.Equals(Id)).AsNoTracking().FirstOrDefaultAsync(cancellationToken);
 
+    public async Task<TEntity?> FindByIdAndTrackAsync(int Id, CancellationToken cancellationToken = default)
+        => await AsQueryable().Where(e => e.Id.Equals(Id)).FirstOrDefaultAsync(cancellationToken);
+
     public async Task<TEntity?> FindAsync(Expression<Func<TEntity, bool>> predicate, CancellationToken cancellationToken = default)
         => await AsQueryable().Where(predicate).AsNoTracking().FirstOrDefaultAsync(cancellationToken);
-    
+
+    public async Task<TEntity?> FindAndTrackAsync(Expression<Func<TEntity, bool>> predicate, CancellationToken cancellationToken = default)
+        => await AsQueryable().Where(predicate).FirstOrDefaultAsync(cancellationToken);
+
     public async Task<List<TEntity>> GetPagedAsync(int pageSize, int pageNumber, CancellationToken cancellationToken = default)
         => await AsQueryable().AsNoTracking().Skip(pageSize * pageNumber).Take(pageSize).ToListAsync(cancellationToken);
 
@@ -270,6 +322,9 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
         => await AsQueryable().Where(predicate).AsNoTracking().Skip(pageSize * pageNumber).Take(pageSize).ToListAsync(cancellationToken);
 
     public async Task<List<TEntity>> GetAllAsync(CancellationToken cancellationToken = default)
+        => await AsQueryable().AsNoTracking().ToListAsync(cancellationToken);
+    
+    public async Task<List<TEntity>> GetAllAndTrackAsync(CancellationToken cancellationToken = default)
         => await AsQueryable().AsNoTracking().ToListAsync(cancellationToken);
 
     public async Task<int> AddAsync(TEntity entity, bool commitImmediately = false, CancellationToken cancellationToken = default)
@@ -359,6 +414,13 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
     {
         if (entities is null)
             throw new RepositoryException($"Provided enumerable of {_entityTypeName}s was null");
+        
+        if (_hasTenant)
+            foreach (TEntity entity in entities)
+            {
+                if ((entity as IHasTenant).TenantId != _tenantId)
+                    throw new RepositoryException("You are not the owner tenant");
+            }
 
         if (!entities.Any())
             return 0;
@@ -401,6 +463,15 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
         if (entity is null)
             throw new RepositoryException($"Provided {_entityTypeName} was null");
 
+        if (_hasTenant && (entity as IHasTenant).TenantId != _tenantId)
+            throw new RepositoryException("You are not the owner tenant");
+
+        if (_isAuditable)
+            entity = (entity as AuditableEntity<int>)
+                .SetModifiedBy(_actor)
+                .SetModifiedDate(_now)
+                as TEntity;
+
         _dbSet.Update(entity);
 
         return commitImmediately ? await _dbContext.SaveChangesAsync(cancellationToken) : 0;
@@ -410,9 +481,23 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
     {
         if (entities is null)
             throw new RepositoryException($"Provided enumerable of {_entityTypeName}s was null");
+        
+        if (_hasTenant)
+            foreach (TEntity entity in entities)
+            {
+                if ((entity as IHasTenant).TenantId != _tenantId)
+                    throw new RepositoryException("You are not the owner tenant");
+            }
 
         if (!entities.Any())
             return 0;
+
+        if (_isAuditable)
+            entities = Enumerable.Cast<AuditableEntity<int>>(entities)
+                      .Select(e =>
+                          e.SetModifiedBy(_actor)
+                           .SetModifiedDate(_now)
+                      ).Cast<TEntity>();
 
         _dbSet.UpdateRange(entities);
 

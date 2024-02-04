@@ -1,4 +1,4 @@
 ﻿<h1>BruteForce.Application</h1>
 <p>
-	This package merely adds MediatR and FluentValidator.
+	Provides mostly used services token and cookie authentication and some extensions.
 </P>

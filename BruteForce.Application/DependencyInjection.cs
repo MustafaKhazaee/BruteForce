@@ -9,7 +9,8 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddApplication (this IServiceCollection services)
     {
-        return services.AddScoped<ICookieAuthenticationService, CookieAuthenticationService>()
+        return services.AddHttpContextAccessor()
+                       .AddScoped<ICookieAuthenticationService, CookieAuthenticationService>()
                        .AddScoped<ITokenService, TokenService>()
                        .AddScoped<IImageService, ImageService>();
     }

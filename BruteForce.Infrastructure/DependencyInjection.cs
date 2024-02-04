@@ -1,9 +1,9 @@
 ﻿
 using BruteForce.Domain.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using BruteForce.Infrastructure.Enums;
 using BruteForce.Infrastructure.Services;
 using Microsoft.Extensions.DependencyInjection;
-using BruteForce.Infrastructure.Enums;
 
 namespace BruteForce.Infrastructure;
 
@@ -18,7 +18,7 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructure<ApplicationDbContext> (this IServiceCollection services,
         DatabaseProviders DatabaseType, string connectionString) where ApplicationDbContext : DbContext, IApplicationDbContext
     {
-        services.AddDbContextPool<IApplicationDbContext, ApplicationDbContext>(config =>
+        return services.AddDbContextPool<IApplicationDbContext, ApplicationDbContext>(config =>
             {
                 if (DatabaseType == DatabaseProviders.SQLServer)
                     config.UseSqlServer(connectionString);
@@ -27,14 +27,9 @@ public static class DependencyInjection
 
                 config.EnableDetailedErrors();
             }
-        );
-
-        services.AddScoped<IUnitOfWork, UnitOfWork>();
-
-        services.AddScoped(typeof(IRepository<,>), typeof(Repository<,>));
-
-        services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
-
-        return services;
+        )
+        .AddScoped<IUnitOfWork, UnitOfWork>()
+        .AddScoped(typeof(IRepository<,>), typeof(Repository<,>))
+        .AddScoped(typeof(IRepository<>), typeof(Repository<>));
     }
 }

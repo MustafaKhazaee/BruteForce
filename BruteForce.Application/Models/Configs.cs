@@ -15,6 +15,8 @@ public sealed record CookieAuthenticationConfigs(TimeSpan ExpireTimeSpan, bool S
 
 /// <summary>
 /// Provide null for last 2 params if you are not using SignalR
+/// You provide the jwt token in query parameter because 
+/// there is no header allowed in websocket request.
 /// </summary>
 public sealed record JwtAuthenticationConfigs(string SecretKey, string Issuer, string Audience, 
     string? QueryParamNameOfJwtTokenForSignalR = null, string? SignlarHubsCommonStartingPath = null);// example: "/api/hub/"

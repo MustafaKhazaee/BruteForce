@@ -9,6 +9,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BruteForce.Application", "B
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BruteForce.Infrastructure", "BruteForce.Infrastructure\BruteForce.Infrastructure.csproj", "{307655F3-36AB-408A-8744-994669F35B6F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BruteForce.RealTime", "BruteForce.RealTime\BruteForce.RealTime.csproj", "{0930635D-A1E9-4061-931E-AD1E9548E4C7}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,10 @@ Global
 		{307655F3-36AB-408A-8744-994669F35B6F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{307655F3-36AB-408A-8744-994669F35B6F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{307655F3-36AB-408A-8744-994669F35B6F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0930635D-A1E9-4061-931E-AD1E9548E4C7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0930635D-A1E9-4061-931E-AD1E9548E4C7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0930635D-A1E9-4061-931E-AD1E9548E4C7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0930635D-A1E9-4061-931E-AD1E9548E4C7}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

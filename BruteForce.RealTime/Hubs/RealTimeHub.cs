@@ -2,7 +2,6 @@
 using Microsoft.AspNetCore.SignalR;
 using BruteForce.Domain.Interfaces;
 using BruteForce.RealTime.Interfaces;
-using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
 
 namespace BruteForce.RealTime.Hubs;
 

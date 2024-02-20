@@ -119,8 +119,8 @@ public class RealTimeUserStorage : IRealTimeUserStorage
     {
         lock (_groupUsers)
         {
-            if (_groupUsers[groupName] is null)
-                _groupUsers[groupName] = [];
+            if (!_groupUsers.TryGetValue(groupName, out _))
+                _groupUsers.Add(groupName, []);
 
             _groupUsers[groupName].Add(userId);
         }
@@ -130,7 +130,7 @@ public class RealTimeUserStorage : IRealTimeUserStorage
     {
         lock (_groupUsers)
         {
-            if (_groupUsers[groupName] is null)
+            if (!_groupUsers.TryGetValue(groupName, out _))
                 return;
 
             _groupUsers[groupName].Remove(userId);
@@ -141,8 +141,8 @@ public class RealTimeUserStorage : IRealTimeUserStorage
     {
         lock (_groupUsers)
         {
-            if (_groupUsers[groupName] is null)
-                _groupUsers[groupName] = [];
+            if (!_groupUsers.TryGetValue(groupName, out _))
+                _groupUsers.Add(groupName, []);
 
             userIds.ForEach(id => _groupUsers[groupName].Add(id));
         }
@@ -152,7 +152,7 @@ public class RealTimeUserStorage : IRealTimeUserStorage
     {
         lock (_groupUsers)
         {
-            if (_groupUsers[groupName] is null)
+            if (!_groupUsers.TryGetValue(groupName, out _))
                 return;
 
             userIds.ForEach(id => _groupUsers[groupName].Remove(id));
@@ -163,8 +163,8 @@ public class RealTimeUserStorage : IRealTimeUserStorage
     {
         lock (_users)
         {
-            if (_users[userId] is null)
-                _users[userId] = [];
+            if (!_users.TryGetValue(userId, out _))
+                _users.Add(userId, []);
 
             _users[userId].Add(connectionId);
         }
@@ -174,7 +174,7 @@ public class RealTimeUserStorage : IRealTimeUserStorage
     {
         lock (_users)
         {
-            if (_users[userId] is null)
+            if (!_users.TryGetValue(userId, out _))
                 return;
 
             _users.Remove(userId);

@@ -5,28 +5,27 @@ namespace BruteForce.RealTime.Implementations;
 
 public class RealTimeUserStorage : IRealTimeUserStorage
 {
-    // UserId to ConnectionId mapper
-    private static readonly Dictionary<string, string> _users = [];
+    // UserId to ConnectionIds mapper
+    private static readonly Dictionary<string, HashSet<string>> _users = [];
     // GroupName to Set of UseIds mapper
     private static readonly Dictionary<string, HashSet<string>> _groupUsers = [];
 
-    public Dictionary<string, string> GetUsersMapping()
-    {
-        return _users;
-    }
+    public Dictionary<string, HashSet<string>> GetUsersMapping() => _users;
 
     public string? GetGroupNameByConnectionId(string connectionId)
     {
         lock (_users)
         {
-            KeyValuePair<string, string>? pair = _users.FirstOrDefault(u => u.Value.Equals(connectionId));
+            HashSet<string>? connectionIds = 
+                _users.Values.FirstOrDefault(conIds => conIds.Any(cid => cid.Equals(connectionId)));
 
-            if (pair is null)
+            if (connectionIds is null)
                 return null;
 
             lock (_groupUsers)
             {
-                KeyValuePair<string, HashSet<string>>? group = _groupUsers.FirstOrDefault(g => g.Value.Any(u => u.Equals(pair.Value.Key)));
+                KeyValuePair<string, HashSet<string>>? group = 
+                    _groupUsers.FirstOrDefault(g => g.Value.Any(u => connectionIds.Contains(u)));
 
                 if (group is null)
                     return null;
@@ -40,14 +39,16 @@ public class RealTimeUserStorage : IRealTimeUserStorage
     {
         lock (_users)
         {
-            KeyValuePair<string, string>? pair = _users.FirstOrDefault(u => u.Key.Equals(userId));
+            string? userID = 
+                _users.Keys.FirstOrDefault(userId => userId.Equals(userId));
 
-            if (pair is null)
+            if (userID is null)
                 return null;
 
             lock (_groupUsers)
             {
-                KeyValuePair<string, HashSet<string>>? group = _groupUsers.FirstOrDefault(g => g.Value.Any(u => u.Equals(pair.Value.Key)));
+                KeyValuePair<string, HashSet<string>>? group =
+                    _groupUsers.FirstOrDefault(g => g.Key.Any(u => u.Equals(userID)));
 
                 if (group is null)
                     return null;
@@ -57,16 +58,16 @@ public class RealTimeUserStorage : IRealTimeUserStorage
         }
     }
 
-    public string? GetConnectionIdByUserId(string userId)
+    public List<string>? GetConnectionIdsByUserId(string userId)
     {
         lock (_users)
         {
-            KeyValuePair<string, string>? pair = _users.FirstOrDefault(u => u.Key.Equals(userId));
+            KeyValuePair<string, HashSet<string>>? pair = _users.FirstOrDefault(u => u.Key.Equals(userId));
 
             if (pair is null)
                 return null;
 
-            return pair.Value.Value;
+            return [.. pair.Value.Value];
         }
     }
 
@@ -74,7 +75,8 @@ public class RealTimeUserStorage : IRealTimeUserStorage
     {
         lock (_users)
         {
-            KeyValuePair<string, string>? pair = _users.FirstOrDefault(u => u.Value.Equals(connectionId));
+            KeyValuePair<string, HashSet<string>>? pair =
+                _users.FirstOrDefault(u => u.Value.Any(cid => cid.Equals(connectionId)));
 
             if (pair is null)
                 return null;
@@ -91,7 +93,8 @@ public class RealTimeUserStorage : IRealTimeUserStorage
             {
                 lock (_users)
                 {
-                    return _users.Where(u => userIds.Contains(u.Key)).Select(pair => pair.Value).ToList();
+                    return _users.Where(u => userIds.Contains(u.Key)).SelectMany(a => a.Value).ToList();
+
                 }
             }
 
@@ -160,7 +163,10 @@ public class RealTimeUserStorage : IRealTimeUserStorage
     {
         lock (_users)
         {
-            _users.Add(userId, connectionId);
+            if (_users[userId] is null)
+                _users[userId] = [];
+
+            _users[userId].Add(connectionId);
         }
     }
 
@@ -168,11 +174,14 @@ public class RealTimeUserStorage : IRealTimeUserStorage
     {
         lock (_users)
         {
+            if (_users[userId] is null)
+                return;
+
             _users.Remove(userId);
         }
     }
 
-    public void AddUsers(Dictionary<string, string> users)
+    public void AddUsers(Dictionary<string, HashSet<string>> users)
     {
         lock (_users)
         {

@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.SignalR;
 using BruteForce.Domain.Interfaces;
 using BruteForce.RealTime.Interfaces;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
 
 namespace BruteForce.RealTime.Hubs;
 
@@ -25,7 +26,7 @@ public class RealTimeHub(IRealTimeUserStorage userStorage, ICurrentUser currentU
         return Task.CompletedTask;
     }
 
-    public Dictionary<string, string> GetUserMapping() => _userStorage.GetUsersMapping();
+    public Dictionary<string, HashSet<string>> GetUserMapping() => _userStorage.GetUsersMapping();
 
     public async Task SendMessageAsync(string userId, string message, string methodName, CancellationToken cancellationToken = default)
         => await Clients.User(userId).SendAsync(methodName, message, cancellationToken);
@@ -35,24 +36,23 @@ public class RealTimeHub(IRealTimeUserStorage userStorage, ICurrentUser currentU
     
     public async Task AddUserToGroupAsync(string groupName, string userId, CancellationToken cancellationToken = default)
     {
-        string? connectionId = _userStorage.GetConnectionIdByUserId(userId);
-
-        if (connectionId is null)
+        List<string>? connectionIds = _userStorage.GetConnectionIdsByUserId(userId);
+        if (connectionIds is null)
             return;
 
-        await Groups.AddToGroupAsync(connectionId, groupName, cancellationToken);
+        connectionIds.ForEach(async id => await Groups.AddToGroupAsync(id, groupName, cancellationToken));
 
         _userStorage.AddUserToGroup(groupName, _userId);
     }
 
     public async Task RemoveUserFromGroupAsync(string groupName, string userId, CancellationToken cancellationToken = default)
     {
-        string? connectionId = _userStorage.GetConnectionIdByUserId(userId);
+        List<string>? connectionIds = _userStorage.GetConnectionIdsByUserId(userId);
 
-        if (connectionId is null)
+        if (connectionIds is null)
             return;
 
-        await Groups.AddToGroupAsync(connectionId, groupName, cancellationToken);
+        connectionIds.ForEach(async id => await Groups.RemoveFromGroupAsync(id, groupName, cancellationToken));
 
         _userStorage.RemoveUserFromGroup(groupName, _userId);
     }

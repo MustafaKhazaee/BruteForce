@@ -6,13 +6,16 @@ namespace BruteForce.RealTime.Interfaces;
 /// </summary>
 public interface IRealTimeUserStorage
 {
-    public Dictionary<string, string> GetUsersMapping();
+    /// <summary>
+    /// Mapping of UserId to a set of connectionIds
+    /// </summary>
+    public Dictionary<string, HashSet<string>> GetUsersMapping();
 
     public string? GetGroupNameByConnectionId(string connectionId);
 
     public string? GetGroupNameByUserId(string userId);
 
-    public string? GetConnectionIdByUserId(string userId);
+    public List<string>? GetConnectionIdsByUserId(string userId);
 
     public string? GetUserIdByConnectionId(string connectionId);
 

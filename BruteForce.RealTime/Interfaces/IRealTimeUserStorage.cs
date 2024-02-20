@@ -35,7 +35,7 @@ public interface IRealTimeUserStorage
 
     public void RemoveUser(string userId);
 
-    public void AddUsers(Dictionary<string, string> users);
+    public void AddUsers(Dictionary<string, HashSet<string>> users);
 
     public void RemoveUsers(List<string> userIds);
 }

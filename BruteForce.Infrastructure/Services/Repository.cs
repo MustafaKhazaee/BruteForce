@@ -84,7 +84,7 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
 
         var hasNextPage = totalPages > pageNumber;
 
-        var hasPreviousPage = 1 < pageNumber && totalPages > 1;
+        var hasPreviousPage = 1 < pageNumber && totalPages > 1 && pageNumber < totalPages;
 
         return new PagedResult<TEntity>(totalRecords, totalPages, pageNumber, pageSize, hasNextPage, hasPreviousPage, data);
     }
@@ -105,9 +105,9 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
 
         var totalPages = totalRecords / pageSize;
 
-        var hasNextPage = 1 > pageNumber;
+        var hasNextPage = totalPages > pageNumber;
 
-        var hasPreviousPage = 1 < pageNumber && totalPages > 1;
+        var hasPreviousPage = 1 < pageNumber && totalPages > 1 && pageNumber < totalPages;
 
         return new PagedResult<TEntity>(totalRecords, totalPages, pageNumber, pageSize, hasNextPage, hasPreviousPage, data);
     }

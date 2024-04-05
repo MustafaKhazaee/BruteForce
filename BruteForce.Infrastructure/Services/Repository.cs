@@ -5,6 +5,7 @@ using BruteForce.Domain.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Query;
 using BruteForce.Infrastructure.Exceptions;
+using BruteForce.Domain.Models;
 
 namespace BruteForce.Infrastructure.Services;
 
@@ -65,11 +66,51 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
     public async Task<TEntity?> FindAndTrackAsync(Expression<Func<TEntity, bool>> predicate, CancellationToken cancellationToken = default)
         => await AsQueryable().Where(predicate).FirstOrDefaultAsync(cancellationToken);
 
-    public async Task<List<TEntity>> GetPagedAsync(int pageSize, int pageNumber, CancellationToken cancellationToken = default)
-        => await AsQueryable().AsNoTracking().Skip(pageSize * pageNumber).Take(pageSize).ToListAsync(cancellationToken);
+    public async Task<PagedResult<TEntity>> GetPagedAsync(int pageSize, int pageNumber, CancellationToken cancellationToken = default)
+    {
+        if (pageNumber < 1)
+            throw new RepositoryException("PageNumber should be a positive number!");
 
-    public async Task<List<TEntity>> GetFilteredPagedAsync(Expression<Func<TEntity, bool>> predicate, int pageSize, int pageNumber, CancellationToken cancellationToken = default)
-        => await AsQueryable().Where(predicate).AsNoTracking().Skip(pageSize * pageNumber).Take(pageSize).ToListAsync(cancellationToken);
+        if (pageSize < 1)
+            throw new RepositoryException("PageSize should be a positive number!");
+
+        var query = AsQueryable().AsNoTracking();
+
+        var data = await query.Skip(pageSize * pageNumber).Take(pageSize).ToListAsync(cancellationToken);
+
+        var totalRecords = await query.LongCountAsync(cancellationToken);
+
+        var totalPages = totalRecords / pageSize;
+
+        var hasNextPage = totalPages > pageNumber;
+
+        var hasPreviousPage = 1 < pageNumber && totalPages > 1;
+
+        return new PagedResult<TEntity>(totalRecords, totalPages, pageNumber, pageSize, hasNextPage, hasPreviousPage, data);
+    }
+
+    public async Task<PagedResult<TEntity>> GetFilteredPagedAsync(Expression<Func<TEntity, bool>> predicate, int pageSize, int pageNumber, CancellationToken cancellationToken = default)
+    {
+        if (pageNumber < 1)
+            throw new RepositoryException("PageNumber should be a positive number!");
+
+        if (pageSize < 1)
+            throw new RepositoryException("PageSize should be a positive number!");
+
+        var query = AsQueryable().AsNoTracking().Where(predicate);
+
+        var data = await query.Skip(pageSize * pageNumber).Take(pageSize).ToListAsync(cancellationToken);
+
+        var totalRecords = await query.LongCountAsync(cancellationToken);
+
+        var totalPages = totalRecords / pageSize;
+
+        var hasNextPage = 1 > pageNumber;
+
+        var hasPreviousPage = 1 < pageNumber && totalPages > 1;
+
+        return new PagedResult<TEntity>(totalRecords, totalPages, pageNumber, pageSize, hasNextPage, hasPreviousPage, data);
+    }
 
     public async Task<List<TEntity>> GetAllAsync(CancellationToken cancellationToken = default)
         => await AsQueryable().AsNoTracking().ToListAsync(cancellationToken);

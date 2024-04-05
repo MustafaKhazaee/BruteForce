@@ -1,6 +1,7 @@
 ﻿
 using System.Linq.Expressions;
 using BruteForce.Domain.Entities;
+using BruteForce.Domain.Models;
 using Microsoft.EntityFrameworkCore.Query;
 
 namespace BruteForce.Domain.Interfaces;
@@ -21,8 +22,8 @@ public interface IRepository<TEntity, TKey> where TEntity : AggregateRoot<TKey> 
     Task<TEntity?> FindAndTrackAsync(Expression<Func<TEntity, bool>> predicate, CancellationToken cancellationToken = default);
     Task<List<TEntity>> GetAllAsync(CancellationToken cancellationToken = default);
     Task<List<TEntity>> GetAllAndTrackAsync(CancellationToken cancellationToken = default);
-    Task<List<TEntity>> GetPagedAsync(int pageSize, int pageNumber, CancellationToken cancellationToken = default);
-    Task<List<TEntity>> GetFilteredPagedAsync(Expression<Func<TEntity, bool>> predicate, int pageSize, int pageNumber, CancellationToken cancellationToken = default);
+    Task<PagedResult<TEntity>> GetPagedAsync(int pageSize, int pageNumber, CancellationToken cancellationToken = default);
+    Task<PagedResult<TEntity>> GetFilteredPagedAsync(Expression<Func<TEntity, bool>> predicate, int pageSize, int pageNumber, CancellationToken cancellationToken = default);
     #endregion Query
 
     #region Add

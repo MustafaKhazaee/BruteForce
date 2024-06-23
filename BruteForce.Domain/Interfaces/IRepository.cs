@@ -24,6 +24,7 @@ public interface IRepository<TEntity, TKey> where TEntity : AggregateRoot<TKey> 
     Task<List<TEntity>> GetAllAndTrackAsync(CancellationToken cancellationToken = default);
     Task<PagedResult<TEntity>> GetPagedAsync(int pageSize, int pageNumber, CancellationToken cancellationToken = default);
     Task<PagedResult<TEntity>> GetFilteredPagedAsync(Expression<Func<TEntity, bool>> predicate, int pageSize, int pageNumber, CancellationToken cancellationToken = default);
+    Task<PagedResult<TEntity>> PreparePage(IQueryable<TEntity> queryable, int pageSize, int pageNumber, CancellationToken cancellationToken);
     #endregion Query
 
     #region Add

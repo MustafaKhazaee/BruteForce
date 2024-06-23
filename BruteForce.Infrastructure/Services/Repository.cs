@@ -1,18 +1,18 @@
 ﻿
 using System.Linq.Expressions;
+using BruteForce.Domain.Models;
 using BruteForce.Domain.Entities;
 using BruteForce.Domain.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Query;
 using BruteForce.Infrastructure.Exceptions;
-using BruteForce.Domain.Models;
 
 namespace BruteForce.Infrastructure.Services;
 
 public class Repository<TEntity>
     (IApplicationDbContext appDbContext, ICurrentUser currentUser, ICurrentTenant currentTenant)
     : Repository<TEntity, long>(appDbContext, currentUser, currentTenant), IRepository<TEntity> where TEntity : AggregateRoot<long>
-{}
+{ }
 
 public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntity : AggregateRoot<TKey> where TKey : IComparable
 {
@@ -67,29 +67,12 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
         => await AsQueryable().Where(predicate).FirstOrDefaultAsync(cancellationToken);
 
     public async Task<PagedResult<TEntity>> GetPagedAsync(int pageSize, int pageNumber, CancellationToken cancellationToken = default)
-    {
-        if (pageNumber < 1)
-            throw new RepositoryException("PageNumber should be a positive number!");
-
-        if (pageSize < 1)
-            throw new RepositoryException("PageSize should be a positive number!");
-
-        var query = AsQueryable().AsNoTracking();
-
-        var data = await query.Skip(pageSize * pageNumber).Take(pageSize).ToListAsync(cancellationToken);
-
-        var totalRecords = await query.LongCountAsync(cancellationToken);
-
-        var totalPages = totalRecords / pageSize;
-
-        var hasNextPage = totalPages > pageNumber;
-
-        var hasPreviousPage = 1 < pageNumber && totalPages > 1 && pageNumber < totalPages;
-
-        return new PagedResult<TEntity>(totalRecords, totalPages, pageNumber, pageSize, hasNextPage, hasPreviousPage, data);
-    }
+        => await PreparePage(AsQueryable(), pageSize, pageNumber, cancellationToken);
 
     public async Task<PagedResult<TEntity>> GetFilteredPagedAsync(Expression<Func<TEntity, bool>> predicate, int pageSize, int pageNumber, CancellationToken cancellationToken = default)
+        => await PreparePage(AsQueryable().Where(predicate), pageSize, pageNumber, cancellationToken);
+
+    public async Task<PagedResult<TEntity>> PreparePage(IQueryable<TEntity> queryable, int pageSize, int pageNumber, CancellationToken cancellationToken)
     {
         if (pageNumber < 1)
             throw new RepositoryException("PageNumber should be a positive number!");
@@ -97,13 +80,13 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
         if (pageSize < 1)
             throw new RepositoryException("PageSize should be a positive number!");
 
-        var query = AsQueryable().AsNoTracking().Where(predicate);
+        var skip = (int)Math.Ceiling((decimal)(pageSize * (pageNumber - 1)));
 
-        var data = await query.Skip(pageSize * pageNumber).Take(pageSize).ToListAsync(cancellationToken);
+        var data = await queryable.Skip(skip).Take(pageSize).ToListAsync(cancellationToken);
 
-        var totalRecords = await query.LongCountAsync(cancellationToken);
+        var totalRecords = await queryable.LongCountAsync(cancellationToken);
 
-        var totalPages = totalRecords / pageSize;
+        var totalPages = (int)Math.Ceiling((decimal)(totalRecords / pageSize));
 
         var hasNextPage = totalPages > pageNumber;
 
@@ -114,7 +97,7 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
 
     public async Task<List<TEntity>> GetAllAsync(CancellationToken cancellationToken = default)
         => await AsQueryable().AsNoTracking().ToListAsync(cancellationToken);
-    
+
     public async Task<List<TEntity>> GetAllAndTrackAsync(CancellationToken cancellationToken = default)
         => await AsQueryable().AsNoTracking().ToListAsync(cancellationToken);
     #endregion Read
@@ -183,7 +166,7 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
                     .ExecuteDeleteAsync(cancellationToken)
             );
 
-        var entity = await _dbSet.FirstOrDefaultAsync(e => e.Id.Equals(Id)) ?? 
+        var entity = await _dbSet.FirstOrDefaultAsync(e => e.Id.Equals(Id)) ??
             throw new RepositoryException($"Provided {_entityTypeName} was null");
 
         if (_softDelete)
@@ -209,7 +192,7 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
     {
         if (entities is null)
             throw new RepositoryException($"Provided enumerable of {_entityTypeName}s was null");
-        
+
         if (_hasTenant)
             foreach (TEntity entity in entities)
             {
@@ -278,7 +261,7 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
     {
         if (entities is null)
             throw new RepositoryException($"Provided enumerable of {_entityTypeName}s was null");
-        
+
         if (_hasTenant)
             foreach (TEntity entity in entities)
             {

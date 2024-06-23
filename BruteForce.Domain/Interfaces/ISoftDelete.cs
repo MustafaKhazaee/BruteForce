@@ -9,20 +9,28 @@ public interface ISoftDelete
     public string? DeletedBy { set; get; }
     public DateTime? DeletedDate { set; get; }
 
-    public ISoftDelete SetIsDeleted (bool isDeleted)
+    public ISoftDelete SetIsDeleted(bool isDeleted)
     {
         IsDeleted = isDeleted;
         return this;
     }
 
-    public ISoftDelete SetDeletedBy (string deletedBy)
+    public ISoftDelete SetDeletedBy(string deletedBy)
     {
         DeletedBy = deletedBy;
         return this;
     }
 
-    public ISoftDelete SetDeletedDate (DateTime deletedDate)
+    public ISoftDelete SetDeletedDate(DateTime deletedDate)
     {
+        DeletedDate = deletedDate;
+        return this;
+    }
+
+    public ISoftDelete SoftDelete(string deletedBy, DateTime deletedDate)
+    {
+        IsDeleted = true;
+        DeletedBy = deletedBy;
         DeletedDate = deletedDate;
         return this;
     }

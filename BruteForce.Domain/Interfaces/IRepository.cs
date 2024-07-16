@@ -11,6 +11,7 @@ public interface IRepository<TEntity> : IRepository<TEntity, long> where TEntity
 public interface IRepository<TEntity, TKey> where TEntity : AggregateRoot<TKey> where TKey : IComparable
 {
     IQueryable<TEntity> AsQueryable();
+    IQueryable<TEntity> AsQueryableNoTenantFilter();
 
     #region Query
     Task<int> CountAsync(CancellationToken cancellationToken = default);

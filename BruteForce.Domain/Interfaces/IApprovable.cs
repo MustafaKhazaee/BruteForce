@@ -1,17 +1,33 @@
 ﻿
+using BruteForce.Domain.Enums;
+
 namespace BruteForce.Domain.Interfaces;
 
 public interface IApprovable
 {
-    bool IsApproved { get; set; }
+    RecordStatus RecordStatus { get; set; }
     string? ApprovedBy { get; set; }
     DateTime? ApprovedDate { get; set; }
 
     public IApprovable Approve(string? approvedBy, DateTime? approvedDate)
     {
-        IsApproved = true;
+        RecordStatus = RecordStatus.Approved;
         ApprovedBy = approvedBy;
         ApprovedDate = approvedDate;
+        return this;
+    }
+
+    public IApprovable Reject(string? approvedBy, DateTime? approvedDate)
+    {
+        RecordStatus = RecordStatus.Rejected;
+        ApprovedBy = approvedBy;
+        ApprovedDate = approvedDate;
+        return this;
+    }
+
+    public IApprovable SetRecordStatus(RecordStatus recordStatus)
+    {
+        RecordStatus = recordStatus;
         return this;
     }
 }

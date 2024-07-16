@@ -23,6 +23,7 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
     private readonly bool _isAuditable = typeof(AuditableEntity<TKey>).IsAssignableFrom(typeof(TEntity));
     private readonly bool _softDelete = typeof(ISoftDelete).IsAssignableFrom(typeof(TEntity));
     private readonly bool _hasTenant = typeof(IHasTenant).IsAssignableFrom(typeof(TEntity));
+    private readonly bool _isApprovable = typeof(IApprovable).IsAssignableFrom(typeof(TEntity));
     private readonly IApplicationDbContext _appDbContext;
     private readonly ICurrentUser _currentUser;
     private readonly ICurrentTenant _currentTenant;
@@ -44,6 +45,7 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
 
     #region Read
     public IQueryable<TEntity> AsQueryable() => _dbSet.Where(e => !_hasTenant || (e as IHasTenant).TenantId == _tenantId);
+    public IQueryable<TEntity> AsQueryableNoTenantFilter() => _dbSet.AsQueryable();
 
     public async Task<int> CountAsync(CancellationToken cancellationToken = default)
         => await AsQueryable().CountAsync(cancellationToken);
@@ -114,6 +116,9 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
         if (_hasTenant)
             entity = (entity as IHasTenant).SetTenantId(_tenantId) as TEntity;
 
+        if (_isApprovable)
+            entity = (entity as IApprovable).SetRecordStatus(Domain.Enums.RecordStatus.Pending) as TEntity;
+
         await _dbSet.AddAsync(entity, cancellationToken);
 
         return commitImmediately ? await _dbContext.SaveChangesAsync(cancellationToken) : 0;
@@ -139,6 +144,12 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
             entities = Enumerable.Cast<IHasTenant>(entities)
                       .Select(e => e.SetTenantId(_tenantId))
                       .Cast<TEntity>();
+        
+        if (_isApprovable)
+            entities = Enumerable.Cast<IApprovable>(entities)
+                        .Select(e => e.SetRecordStatus(Domain.Enums.RecordStatus.Pending))
+                        .Cast<TEntity>();
+
 
         await _dbSet.AddRangeAsync(entities, cancellationToken);
 

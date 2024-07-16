@@ -20,16 +20,16 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
     private readonly DateTime _now = DateTime.Now;
     private readonly string _entityTypeName = nameof(TEntity);
     private readonly string _actor;
-    private readonly bool _isAuditable = typeof(AuditableEntity<TKey>).IsAssignableFrom(typeof(TEntity));
+    private readonly int _tenantId;
+    private readonly bool _auditCreation = typeof(IAuditCreation).IsAssignableFrom(typeof(TEntity));
+    private readonly bool _auditUpdate = typeof(IAuditUpdate).IsAssignableFrom(typeof(TEntity));
     private readonly bool _softDelete = typeof(ISoftDelete).IsAssignableFrom(typeof(TEntity));
     private readonly bool _hasTenant = typeof(IHasTenant).IsAssignableFrom(typeof(TEntity));
-    private readonly bool _isApprovable = typeof(IApprovable).IsAssignableFrom(typeof(TEntity));
     private readonly IApplicationDbContext _appDbContext;
     private readonly ICurrentUser _currentUser;
     private readonly ICurrentTenant _currentTenant;
     private readonly DbContext _dbContext;
     private readonly DbSet<TEntity> _dbSet;
-    private readonly int _tenantId;
     #endregion Fields
 
     public Repository(IApplicationDbContext appDbContext, ICurrentUser currentUser, ICurrentTenant currentTenant)
@@ -37,18 +37,22 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
         _appDbContext = appDbContext;
         _currentUser = currentUser;
         _currentTenant = currentTenant;
-        _actor = _currentUser.GetUserName();
-        _tenantId = _currentTenant.GetTenantId();
-        _dbContext = _appDbContext as DbContext;
+        _actor = $"{_currentUser.GetFullName()} ({_currentUser.GetUserName()})";
+        _tenantId = _currentTenant.GetTenantId()!.Value;
+        _dbContext = (_appDbContext as DbContext)!;
         _dbSet = _dbContext.Set<TEntity>();
     }
 
     #region Read
-    public IQueryable<TEntity> AsQueryable() => _dbSet.Where(e => !_hasTenant || (e as IHasTenant).TenantId == _tenantId);
-    public IQueryable<TEntity> AsQueryableNoTenantFilter() => _dbSet.AsQueryable();
+    public IQueryable<TEntity> AsQueryable()
+        => _dbSet.Where(e => !_hasTenant || (e as IHasTenant)!.TenantId == _tenantId)
+              .Where(e => !_softDelete || !(e as ISoftDelete)!.IsDeleted);
 
     public async Task<int> CountAsync(CancellationToken cancellationToken = default)
         => await AsQueryable().CountAsync(cancellationToken);
+
+    public async Task<long> LongCountAsync(CancellationToken cancellationToken = default)
+        => await AsQueryable().LongCountAsync(cancellationToken);
 
     public async Task<List<TEntity>> FindAllAsync(Expression<Func<TEntity, bool>> predicate, CancellationToken cancellationToken = default)
         => await AsQueryable().Where(predicate).AsNoTracking().ToListAsync(cancellationToken);
@@ -69,33 +73,10 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
         => await AsQueryable().Where(predicate).FirstOrDefaultAsync(cancellationToken);
 
     public async Task<PagedResult<TEntity>> GetPagedAsync(int pageSize, int pageNumber, CancellationToken cancellationToken = default)
-        => await PreparePage(AsQueryable(), pageSize, pageNumber, cancellationToken);
+        => await PagedResult<TEntity>.CreateAsync(AsQueryable(), pageSize, pageNumber, cancellationToken);
 
     public async Task<PagedResult<TEntity>> GetFilteredPagedAsync(Expression<Func<TEntity, bool>> predicate, int pageSize, int pageNumber, CancellationToken cancellationToken = default)
-        => await PreparePage(AsQueryable().Where(predicate), pageSize, pageNumber, cancellationToken);
-
-    public async Task<PagedResult<TEntity>> PreparePage(IQueryable<TEntity> queryable, int pageSize, int pageNumber, CancellationToken cancellationToken)
-    {
-        if (pageNumber < 1)
-            throw new RepositoryException("PageNumber should be a positive number!");
-
-        if (pageSize < 1)
-            throw new RepositoryException("PageSize should be a positive number!");
-
-        var skip = (int)Math.Ceiling((decimal)(pageSize * (pageNumber - 1)));
-
-        var data = await queryable.Skip(skip).Take(pageSize).ToListAsync(cancellationToken);
-
-        var totalRecords = await queryable.LongCountAsync(cancellationToken);
-
-        var totalPages = (int)Math.Ceiling((decimal)(totalRecords / pageSize));
-
-        var hasNextPage = totalPages > pageNumber;
-
-        var hasPreviousPage = 1 < pageNumber && totalPages > 1 && pageNumber < totalPages;
-
-        return new PagedResult<TEntity>(totalRecords, totalPages, pageNumber, pageSize, hasNextPage, hasPreviousPage, data);
-    }
+        => await PagedResult<TEntity>.CreateAsync(AsQueryable().Where(predicate), pageSize, pageNumber, cancellationToken);
 
     public async Task<List<TEntity>> GetAllAsync(CancellationToken cancellationToken = default)
         => await AsQueryable().AsNoTracking().ToListAsync(cancellationToken);
@@ -110,14 +91,11 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
         if (entity is null)
             throw new RepositoryException($"Provided {_entityTypeName} was null");
 
-        if (_isAuditable)
-            entity = (entity as AuditableEntity<TKey>).SetCreatedBy(_actor).SetCreatedDate(_now) as TEntity;
+        if (_auditCreation)
+            entity = ((entity as IAuditCreation)!.SetCreatedBy(_actor).SetCreatedDate(_now) as TEntity)!;
 
         if (_hasTenant)
-            entity = (entity as IHasTenant).SetTenantId(_tenantId) as TEntity;
-
-        if (_isApprovable)
-            entity = (entity as IApprovable).SetRecordStatus(Domain.Enums.RecordStatus.Pending) as TEntity;
+            entity = ((entity as IHasTenant)!.SetTenantId(_tenantId) as TEntity)!;
 
         await _dbSet.AddAsync(entity, cancellationToken);
 
@@ -132,8 +110,8 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
         if (!entities.Any())
             return 0;
 
-        if (_isAuditable)
-            entities = Enumerable.Cast<AuditableEntity<TKey>>(entities)
+        if (_auditCreation)
+            entities = Enumerable.Cast<IAuditCreation>(entities)
                       .Select(e =>
                           e.SetCreatedBy(_actor)
                           .SetCreatedDate(_now)
@@ -144,12 +122,6 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
             entities = Enumerable.Cast<IHasTenant>(entities)
                       .Select(e => e.SetTenantId(_tenantId))
                       .Cast<TEntity>();
-        
-        if (_isApprovable)
-            entities = Enumerable.Cast<IApprovable>(entities)
-                        .Select(e => e.SetRecordStatus(Domain.Enums.RecordStatus.Pending))
-                        .Cast<TEntity>();
-
 
         await _dbSet.AddRangeAsync(entities, cancellationToken);
 
@@ -177,13 +149,13 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
                     .ExecuteDeleteAsync(cancellationToken)
             );
 
-        var entity = await _dbSet.FirstOrDefaultAsync(e => e.Id.Equals(Id)) ??
+        var entity = await AsQueryable().FirstOrDefaultAsync(e => e.Id.Equals(Id), cancellationToken) ??
             throw new RepositoryException($"Provided {_entityTypeName} was null");
 
         if (_softDelete)
         {
-            entity = (entity as ISoftDelete).SetIsDeleted(true).SetDeletedBy(_actor).SetDeletedDate(_now) as TEntity;
-            _dbSet.Update(entity);
+            entity = (entity as ISoftDelete)!.SetIsDeleted(true).SetDeletedBy(_actor).SetDeletedDate(_now) as TEntity;
+            _dbSet.Update(entity!);
         }
         else
         {
@@ -207,7 +179,7 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
         if (_hasTenant)
             foreach (TEntity entity in entities)
             {
-                if ((entity as IHasTenant).TenantId != _tenantId)
+                if ((entity as IHasTenant)!.TenantId != _tenantId)
                     throw new RepositoryException("You are not the owner tenant");
             }
 
@@ -254,14 +226,14 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
         if (entity is null)
             throw new RepositoryException($"Provided {_entityTypeName} was null");
 
-        if (_hasTenant && (entity as IHasTenant).TenantId != _tenantId)
+        if (_hasTenant && (entity as IHasTenant)!.TenantId != _tenantId)
             throw new RepositoryException("You are not the owner tenant");
 
-        if (_isAuditable)
-            entity = (entity as AuditableEntity<int>)
-                .SetModifiedBy(_actor)
-                .SetModifiedDate(_now)
-                as TEntity;
+        if (_auditUpdate)
+            entity = ((entity as IAuditUpdate)!
+                .SetUpdatedBy(_actor)
+                .SetUpdatedDate(_now)
+                as TEntity)!;
 
         _dbSet.Update(entity);
 
@@ -276,18 +248,18 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
         if (_hasTenant)
             foreach (TEntity entity in entities)
             {
-                if ((entity as IHasTenant).TenantId != _tenantId)
+                if ((entity as IHasTenant)!.TenantId != _tenantId)
                     throw new RepositoryException("You are not the owner tenant");
             }
 
         if (!entities.Any())
             return 0;
 
-        if (_isAuditable)
-            entities = Enumerable.Cast<AuditableEntity<int>>(entities)
+        if (_auditUpdate)
+            entities = Enumerable.Cast<IAuditUpdate>(entities)
                       .Select(e =>
-                          e.SetModifiedBy(_actor)
-                           .SetModifiedDate(_now)
+                          e.SetUpdatedBy(_actor)
+                           .SetUpdatedDate(_now)
                       ).Cast<TEntity>();
 
         _dbSet.UpdateRange(entities);

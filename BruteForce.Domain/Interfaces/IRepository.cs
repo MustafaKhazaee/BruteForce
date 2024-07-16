@@ -1,7 +1,7 @@
 ﻿
 using System.Linq.Expressions;
-using BruteForce.Domain.Entities;
 using BruteForce.Domain.Models;
+using BruteForce.Domain.Entities;
 using Microsoft.EntityFrameworkCore.Query;
 
 namespace BruteForce.Domain.Interfaces;
@@ -11,10 +11,10 @@ public interface IRepository<TEntity> : IRepository<TEntity, long> where TEntity
 public interface IRepository<TEntity, TKey> where TEntity : AggregateRoot<TKey> where TKey : IComparable
 {
     IQueryable<TEntity> AsQueryable();
-    IQueryable<TEntity> AsQueryableNoTenantFilter();
 
     #region Query
     Task<int> CountAsync(CancellationToken cancellationToken = default);
+    Task<long> LongCountAsync(CancellationToken cancellationToken = default);
     Task<List<TEntity>> FindAllAsync(Expression<Func<TEntity, bool>> predicate, CancellationToken cancellationToken = default);
     Task<List<TEntity>> FindAllAndTrackAsync(Expression<Func<TEntity, bool>> predicate, CancellationToken cancellationToken = default);
     Task<TEntity?> FindByIdAsync(TKey Id, CancellationToken cancellationToken = default);
@@ -25,7 +25,6 @@ public interface IRepository<TEntity, TKey> where TEntity : AggregateRoot<TKey> 
     Task<List<TEntity>> GetAllAndTrackAsync(CancellationToken cancellationToken = default);
     Task<PagedResult<TEntity>> GetPagedAsync(int pageSize, int pageNumber, CancellationToken cancellationToken = default);
     Task<PagedResult<TEntity>> GetFilteredPagedAsync(Expression<Func<TEntity, bool>> predicate, int pageSize, int pageNumber, CancellationToken cancellationToken = default);
-    Task<PagedResult<TEntity>> PreparePage(IQueryable<TEntity> queryable, int pageSize, int pageNumber, CancellationToken cancellationToken);
     #endregion Query
 
     #region Add
@@ -44,7 +43,7 @@ public interface IRepository<TEntity, TKey> where TEntity : AggregateRoot<TKey> 
     Task<int> UpdateRangeAsync(IEnumerable<TEntity> entities, bool commitImmediately = false, CancellationToken cancellationToken = default);
     /// <summary>
     /// This method will commit immediately.
-    /// You will have to audit it yourself.
+    /// You will have to set IAuditCreation and IAuditUpdate field yourself.
     /// You need to take care of tenants too.
     /// </summary>
     Task<int> UpdateAsync(Expression<Func<TEntity, bool>> predicate, Expression<Func<SetPropertyCalls<TEntity>, SetPropertyCalls<TEntity>>> setPropertyCalls, CancellationToken cancellation = default);

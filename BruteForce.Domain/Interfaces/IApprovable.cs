@@ -6,22 +6,30 @@ namespace BruteForce.Domain.Interfaces;
 public interface IApprovable
 {
     RecordStatus RecordStatus { get; set; }
-    string? ApprovedBy { get; set; }
-    DateTime? ApprovedDate { get; set; }
+    string? Actor { get; set; }
+    DateTime? ActionDate { get; set; }
 
-    public IApprovable Approve(string? approvedBy, DateTime? approvedDate)
+    public IApprovable Approve(string? actor, DateTime? actionDate)
     {
-        RecordStatus = RecordStatus.Approved;
-        ApprovedBy = approvedBy;
-        ApprovedDate = approvedDate;
+        RecordStatus = RecordStatus.APPROVED;
+        Actor = actor;
+        ActionDate = actionDate;
         return this;
     }
 
-    public IApprovable Reject(string? approvedBy, DateTime? approvedDate)
+    public IApprovable Reject(string? actor, DateTime? actionDate)
     {
-        RecordStatus = RecordStatus.Rejected;
-        ApprovedBy = approvedBy;
-        ApprovedDate = approvedDate;
+        RecordStatus = RecordStatus.REJECTED;
+        Actor = actor;
+        ActionDate = actionDate;
+        return this;
+    }
+
+    public IApprovable SetRecordStatus(RecordStatus recordStatus, string? actor, DateTime? actionDate)
+    {
+        RecordStatus = recordStatus;
+        Actor = actor;
+        ActionDate = actionDate;
         return this;
     }
 

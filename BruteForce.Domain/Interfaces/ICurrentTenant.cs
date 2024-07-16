@@ -3,7 +3,7 @@ namespace BruteForce.Domain.Interfaces;
 
 public interface ICurrentTenant
 {
-    int GetTenantId();
+    int? GetTenantId();
 
-    string GetTenantName();
+    string? GetTenantName();
 }

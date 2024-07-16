@@ -1,4 +1,7 @@
 ﻿
+using BruteForce.Domain.Extensions;
+using Microsoft.EntityFrameworkCore;
+
 namespace BruteForce.Domain.Models;
 
 public class PagedResult<T>
@@ -11,16 +14,30 @@ public class PagedResult<T>
     public bool HasPreviousPage { set; get; }
     public List<T> Data { set; get; }
 
-    public PagedResult() { }
+    public static PagedResult<T> Create(long totalRecords, long totalPages, long currentPage, long pageSize, bool hasNextPage, bool hasPreviousPage, List<T> data)
+        => new()
+        {
+            TotalRecords = totalRecords,
+            TotalPages = totalPages,
+            CurrentPage = currentPage,
+            PageSize = pageSize,
+            HasNextPage = hasNextPage,
+            HasPreviousPage = hasPreviousPage,
+            Data = data
+        };
 
-    public PagedResult(long totalRecords, long totalPages, long currentPage, long pageSize, bool hasNextPage, bool hasPreviousPage, List<T> data)
+    public async static Task<PagedResult<T>> CreateAsync (IQueryable<T> queryable, int pageSize, int pageNumber, CancellationToken cancellationToken = default)
     {
-        TotalRecords = totalRecords;
-        TotalPages = totalPages;
-        CurrentPage = currentPage;
-        PageSize = pageSize;
-        HasNextPage = hasNextPage;
-        HasPreviousPage = hasPreviousPage;
-        Data = data;
+        var data = await (await queryable.GetPageAsync(pageSize, pageNumber, cancellationToken)).ToListAsync(cancellationToken);
+
+        var totalRecords = await queryable.LongCountAsync(cancellationToken);
+
+        var totalPages = (int)Math.Ceiling((decimal)(totalRecords / pageSize));
+
+        var hasNextPage = totalPages > pageNumber;
+
+        var hasPreviousPage = 1 < pageNumber && totalPages > 1;
+
+        return PagedResult<T>.Create(totalRecords, totalPages, pageNumber, pageSize, hasNextPage, hasPreviousPage, data);
     }
 }

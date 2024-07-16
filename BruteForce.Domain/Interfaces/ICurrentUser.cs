@@ -6,7 +6,7 @@ public interface ICurrentUser
     /// Returns the Id of user as string (It may be int or guid and you have to convert it yourself)
     /// </summary>
     /// <returns></returns>
-    string GetUserId();
-    string GetUserName();
-    string GetFullName();
+    string? GetUserId();
+    string? GetUserName();
+    string? GetFullName();
 }

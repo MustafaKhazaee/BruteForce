@@ -14,6 +14,17 @@ public class PagedResult<T>
     public bool HasPreviousPage { set; get; }
     public List<T> Data { set; get; }
 
+    /// <summary>
+    /// It is better is you use the CreateAsync method :)
+    /// </summary>
+    /// <param name="totalRecords"></param>
+    /// <param name="totalPages"></param>
+    /// <param name="currentPage"></param>
+    /// <param name="pageSize"></param>
+    /// <param name="hasNextPage"></param>
+    /// <param name="hasPreviousPage"></param>
+    /// <param name="data"></param>
+    /// <returns></returns>
     public static PagedResult<T> Create(long totalRecords, long totalPages, long currentPage, long pageSize, bool hasNextPage, bool hasPreviousPage, List<T> data)
         => new()
         {
@@ -36,7 +47,7 @@ public class PagedResult<T>
 
         var hasNextPage = totalPages > pageNumber;
 
-        var hasPreviousPage = 1 < pageNumber && totalPages > 1;
+        var hasPreviousPage = 1 < pageNumber && 1 < totalPages;
 
         return PagedResult<T>.Create(totalRecords, totalPages, pageNumber, pageSize, hasNextPage, hasPreviousPage, data);
     }

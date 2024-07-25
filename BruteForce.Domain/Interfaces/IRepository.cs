@@ -41,11 +41,6 @@ public interface IRepository<TEntity, TKey> where TEntity : AggregateRoot<TKey> 
     #region Update
     Task<int> UpdateAsync(TEntity entity, bool commitImmediately = false, CancellationToken cancellationToken = default);
     Task<int> UpdateRangeAsync(IEnumerable<TEntity> entities, bool commitImmediately = false, CancellationToken cancellationToken = default);
-    /// <summary>
-    /// This method will commit immediately.
-    /// You will have to set IAuditCreation and IAuditUpdate field yourself.
-    /// You need to take care of tenants too.
-    /// </summary>
     Task<int> UpdateAsync(Expression<Func<TEntity, bool>> predicate, Expression<Func<SetPropertyCalls<TEntity>, SetPropertyCalls<TEntity>>> setPropertyCalls, CancellationToken cancellation = default);
     #endregion Update
 

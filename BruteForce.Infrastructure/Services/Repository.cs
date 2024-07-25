@@ -46,7 +46,7 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
     #region Read
     public IQueryable<TEntity> AsQueryable()
         => _dbSet.Where(e => !_hasTenant || (e as IHasTenant)!.TenantId == _tenantId)
-              .Where(e => !_softDelete || !(e as ISoftDelete)!.IsDeleted);
+                 .Where(e => !_softDelete || !(e as ISoftDelete)!.IsDeleted);
 
     public async Task<int> CountAsync(CancellationToken cancellationToken = default)
         => await AsQueryable().CountAsync(cancellationToken);
@@ -268,7 +268,24 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey> where TEntit
     }
 
     public async Task<int> UpdateAsync(Expression<Func<TEntity, bool>> predicate, Expression<Func<SetPropertyCalls<TEntity>, SetPropertyCalls<TEntity>>> setPropertyCalls, CancellationToken cancellationToken = default)
-        => await AsQueryable().Where(predicate).ExecuteUpdateAsync(setPropertyCalls, cancellationToken);
+    {
+        if (!_auditUpdate)
+            return await AsQueryable().Where(predicate).ExecuteUpdateAsync(setPropertyCalls, cancellationToken);
+
+        var taskAuditUpdate = AsQueryable()
+                             .Where(predicate)
+                             .ExecuteUpdateAsync(setters =>
+                                 setters.SetProperty(e => (e as IAuditUpdate).UpdatedBy, _actor)
+                                        .SetProperty(e => (e as IAuditUpdate).UpdatedDate, _now),
+                                 cancellationToken
+                             );
+
+        var taskUserDefinedUpdate = AsQueryable()
+                                   .Where(predicate)
+                                   .ExecuteUpdateAsync(setPropertyCalls, cancellationToken);
+
+        return (await Task.WhenAll(taskAuditUpdate, taskUserDefinedUpdate)).Sum();
+    }
     #endregion Update
 
     #region Save

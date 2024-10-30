@@ -1,9 +1,6 @@
 ﻿
 namespace BruteForce.Infrastructure.Exceptions;
 
-public class RepositoryException : Exception
+public class RepositoryException(string? message) : Exception(message)
 {
-    public RepositoryException(string? message) : base(message)
-    {
-    }
 }

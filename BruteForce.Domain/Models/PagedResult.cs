@@ -43,7 +43,7 @@ public class PagedResult<T>
 
         var totalRecords = await queryable.LongCountAsync(cancellationToken);
 
-        var totalPages = (int)Math.Ceiling((decimal)(totalRecords / pageSize));
+        var totalPages = (int)Math.Ceiling(((decimal)totalRecords / pageSize));
 
         var hasNextPage = totalPages > pageNumber;
 
